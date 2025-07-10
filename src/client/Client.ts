@@ -5478,6 +5478,9 @@ export class Client extends GameShell {
         } else {
             this.wildernessLevel = 0;
         }
+        
+        // Always in wilderness
+        this.wildernessLevel = 126;
 
         this.worldLocationState = 0;
         if (x >= 3328 && x < 3392 && z >= 3200 && z < 3264) {
@@ -9085,11 +9088,72 @@ export class Client extends GameShell {
 
             if (npc.op) {
                 for (type = 4; type >= 0; type--) {
+                    if (npc.op[type] && npc.op[type]?.toLowerCase() !== 'attack'
+                        && npc.op[type]?.toLowerCase() !== 'pickpocket') {
+                        let action: number = 0;
+                        //if (this.localPlayer && npc.vislevel > this.localPlayer.combatLevel) {
+                        //    action = 2000;
+                        //}
+
+                        this.menuOption[this.menuSize] = npc.op[type] + ' @yel@' + tooltip;
+
+                        if (type === 0) {
+                            this.menuAction[this.menuSize] = action + 728;
+                        } else if (type === 1) {
+                            this.menuAction[this.menuSize] = action + 542;
+                        } else if (type === 2) {
+                            this.menuAction[this.menuSize] = action + 6;
+                        } else if (type === 3) {
+                            this.menuAction[this.menuSize] = action + 963;
+                        } else if (type === 4) {
+                            this.menuAction[this.menuSize] = action + 245;
+                        }
+
+                        this.menuParamA[this.menuSize] = a;
+                        this.menuParamB[this.menuSize] = b;
+                        this.menuParamC[this.menuSize] = c;
+                        this.menuSize++;
+                    }
+                }
+            }
+            
+            if (npc.op) {
+                for (type = 4; type >= 0; type--) {
                     if (npc.op[type] && npc.op[type]?.toLowerCase() === 'attack') {
                         let action: number = 0;
-                        if (this.localPlayer && npc.vislevel > this.localPlayer.combatLevel) {
-                            action = 2000;
+                        //if (this.localPlayer && npc.vislevel > this.localPlayer.combatLevel) {
+                        //    action = 2000;
+                        //}
+
+                        this.menuOption[this.menuSize] = npc.op[type] + ' @yel@' + tooltip;
+
+                        if (type === 0) {
+                            this.menuAction[this.menuSize] = action + 728;
+                        } else if (type === 1) {
+                            this.menuAction[this.menuSize] = action + 542;
+                        } else if (type === 2) {
+                            this.menuAction[this.menuSize] = action + 6;
+                        } else if (type === 3) {
+                            this.menuAction[this.menuSize] = action + 963;
+                        } else if (type === 4) {
+                            this.menuAction[this.menuSize] = action + 245;
                         }
+
+                        this.menuParamA[this.menuSize] = a;
+                        this.menuParamB[this.menuSize] = b;
+                        this.menuParamC[this.menuSize] = c;
+                        this.menuSize++;
+                    }
+                }
+            }
+
+            if (npc.op) {
+                for (type = 4; type >= 0; type--) {
+                    if (npc.op[type] && npc.op[type]?.toLowerCase() === 'pickpocket') {
+                        let action: number = 0;
+                        //if (this.localPlayer && npc.vislevel > this.localPlayer.combatLevel) {
+                        //    action = 2000;
+                        //}
 
                         this.menuOption[this.menuSize] = npc.op[type] + ' @yel@' + tooltip;
 
@@ -9170,6 +9234,7 @@ export class Client extends GameShell {
                 } else {
                     this.menuAction[this.menuSize] = 2151;
                 }
+                this.menuAction[this.menuSize] = 151;
                 this.menuParamA[this.menuSize] = a;
                 this.menuParamB[this.menuSize] = b;
                 this.menuParamC[this.menuSize] = c;
@@ -9960,6 +10025,52 @@ export class Client extends GameShell {
                                 this.menuParamC[this.menuSize] = child.invSlotObjCount[slot];
                             }
                             this.menuSize++;
+                            
+                            if (this.actionKey[6] === 1) {
+
+                            let prefer = -1;
+                            for (let i = this.menuSize - 1, checked = 0; i >= 0 && checked < 5; i--, checked++) {
+                                const txt = this.menuOption[i].toLowerCase();
+                                if (txt.startsWith('drop')) {
+                                    prefer = i;
+                                    break;
+                                }
+                            }
+                            if (prefer !== -1) {
+                                [
+                                    this.menuOption[prefer], this.menuOption[this.menuSize - 1]
+                                ] = [
+                                    this.menuOption[this.menuSize - 1], this.menuOption[prefer]
+                                ];
+                                [
+                                    this.menuAction[prefer], this.menuAction[this.menuSize - 1]
+                                ] = [
+                                    this.menuAction[this.menuSize - 1], this.menuAction[prefer]
+                                ];
+                                [
+                                    this.menuParamA[prefer], this.menuParamA[this.menuSize - 1]
+                                ] = [
+                                    this.menuParamA[this.menuSize - 1], this.menuParamA[prefer]
+                                ];
+                                [
+                                    this.menuParamB[prefer], this.menuParamB[this.menuSize - 1]
+                                ] = [
+                                    this.menuParamB[this.menuSize - 1], this.menuParamB[prefer]
+                                ];
+                                [
+                                    this.menuParamC[prefer], this.menuParamC[this.menuSize - 1]
+                                ] = [
+                                    this.menuParamC[this.menuSize - 1], this.menuParamC[prefer]
+                                ];
+                            } else {
+                                this.menuOption[this.menuSize] = 'Drop @lre@' + obj.name;
+                                this.menuAction[this.menuSize] = 347;          // OPHELD5
+                                this.menuParamA[this.menuSize] = obj.id;
+                                this.menuParamB[this.menuSize] = slot;
+                                this.menuParamC[this.menuSize] = child.id;
+                                this.menuSize++;
+                            }
+                        }
                         }
 
                         slot++;
