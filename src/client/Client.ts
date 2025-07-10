@@ -765,7 +765,7 @@ export class Client extends GameShell {
             this.imageMapedge.crop();
 
             try {
-                for (let i: number = 0; i < 50; i++) {
+                for (let i: number = 0; i < this.imageMapscene.length; i++) {
                     this.imageMapscene[i] = Pix8.fromArchive(jagMedia, 'mapscene', i);
                 }
             } catch (e) {
