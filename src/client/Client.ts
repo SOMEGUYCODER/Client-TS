@@ -203,10 +203,10 @@ export class Client extends GameShell {
     private imageMinimap: Pix32 | null = null;
     private imageCompass: Pix32 | null = null;
     private imageMapedge: Pix32 | null = null;
-    private imageMapscene: (Pix8 | null)[] = new TypedArray1d(50, null);
+    private imageMapscene: (Pix8 | null)[] = new TypedArray1d(100, null);
     private imageMapfunction: (Pix32 | null)[] = new TypedArray1d(50, null);
-    private imageHitmarks: (Pix32 | null)[] = new TypedArray1d(20, null);
-    private imageHeadicon: (Pix32 | null)[] = new TypedArray1d(20, null);
+    private imageHitmarks: (Pix32 | null)[] = new TypedArray1d(50, null);
+    private imageHeadicon: (Pix32 | null)[] = new TypedArray1d(50, null);
     private imageMapmarker0: Pix32 | null = null;
     private imageMapmarker1: Pix32 | null = null;
     private imageCrosses: (Pix32 | null)[] = new TypedArray1d(8, null);
