@@ -204,7 +204,7 @@ export class Client extends GameShell {
     private imageCompass: Pix32 | null = null;
     private imageMapedge: Pix32 | null = null;
     private imageMapscene: (Pix8 | null)[] = new TypedArray1d(100, null);
-    private imageMapfunction: (Pix32 | null)[] = new TypedArray1d(50, null);
+    private imageMapfunction: (Pix32 | null)[] = new TypedArray1d(100, null);
     private imageHitmarks: (Pix32 | null)[] = new TypedArray1d(50, null);
     private imageHeadicon: (Pix32 | null)[] = new TypedArray1d(50, null);
     private imageMapmarker0: Pix32 | null = null;
@@ -3365,14 +3365,14 @@ export class Client extends GameShell {
                     if (key === -1) {
                         return;
                     }
-
+                    
                     if (this.viewportInterfaceId !== -1 && this.viewportInterfaceId === this.reportAbuseInterfaceId) {
                         if (key === 8 && this.reportAbuseInput.length > 0) {
                             this.reportAbuseInput = this.reportAbuseInput.substring(0, this.reportAbuseInput.length - 1);
                         }
                         break;
                     }
-
+                    
                     if (this.showSocialInput) {
                         if (key >= 32 && key <= 122 && this.socialInput.length < 80) {
                             this.socialInput = this.socialInput + String.fromCharCode(key);
