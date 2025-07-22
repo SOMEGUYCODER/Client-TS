@@ -513,6 +513,34 @@ export class Client extends GameShell {
             this.levelExperience[i] = (acc / 4) | 0;
         }
     }
+    
+   private openTabByFKey(fKeyNumber: number): void {
+    const tabMap: { [key: number]: number } = {
+        1: 0, // Combat
+        2: 1, // Stats
+        3: 2, // Quests
+        4: 3, // Inventory
+        5: 4, // Equipment
+        6: 5, // Prayer
+        7: 6, // Magic
+        8: 7, // Friends
+        9: 8, // Ignore
+        10: 9, // Logout
+        11: 10, // Settings
+        12: 11, // Emotes
+        13: 12, // Music
+    };
+    const tabId = tabMap[fKeyNumber];
+    if (tabId !== undefined) {
+        this.setTab(tabId); 
+    }
+    }
+
+    private setTab(tabId: number): void {
+        this.redrawSidebar = true;
+        this.selectedTab = tabId;
+        this.redrawSideicons = true;
+    }
 
     constructor(nodeid: number, lowmem: boolean, members: boolean) {
         super();
@@ -535,6 +563,26 @@ export class Client extends GameShell {
         if (typeof process.env.SECURE_ORIGIN !== 'undefined' && process.env.SECURE_ORIGIN !== 'false' && window.location.hostname !== process.env.SECURE_ORIGIN) {
             this.errorHost = true;
         }
+        
+window.addEventListener("keydown", (e) => {
+    console.log("Key pressed:", e.code, "Key:", e.key);
+    if (e.repeat) return;
+    switch (e.code) {
+        case "F1":  e.preventDefault(); this.openTabByFKey(1); break;
+        case "F2":  e.preventDefault(); this.openTabByFKey(2); break;
+        case "F3":  e.preventDefault(); this.openTabByFKey(3); break;
+        case "F4":  e.preventDefault(); this.openTabByFKey(4); break;
+        case "F5":  e.preventDefault(); this.openTabByFKey(5); break;
+        case "F6":  e.preventDefault(); this.openTabByFKey(6); break;
+        case "F7":  e.preventDefault(); this.openTabByFKey(7); break;
+        case "F8":  e.preventDefault(); this.openTabByFKey(8); break;
+        case "F9":  e.preventDefault(); this.openTabByFKey(9); break;
+        case "F10": e.preventDefault(); this.openTabByFKey(10); break;
+        case "F11": e.preventDefault(); this.openTabByFKey(11); break;
+        case "F12": e.preventDefault(); this.openTabByFKey(12); break;
+    }
+});
+
 
         this.run();
     }
