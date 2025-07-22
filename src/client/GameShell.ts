@@ -4,6 +4,7 @@ import PixMap from '#/graphics/PixMap.js';
 
 import { sleep } from '#/util/JsUtil.js';
 
+import MobileKeyboard from '#/client/MobileKeyboard.js';
 import { CanvasEnabledKeys, KeyCodes } from '#/client/KeyCodes.js';
 import InputTracking from '#/client/InputTracking.js';
 
@@ -18,7 +19,7 @@ export default abstract class GameShell {
     protected redrawScreen: boolean = true;
     protected hasFocus: boolean = true;
 
-    public idleCycles: number = Date.now();
+    public idleCycles: number = performance.now();
     public mouseButton: number = 0;
     public mouseX: number = -1;
     public mouseY: number = -1;
@@ -47,7 +48,6 @@ export default abstract class GameShell {
     protected ingame: boolean = false;
 
     // touch controls
-    private input: HTMLElement | null = null;
     private touching: boolean = false;
     private startedInViewport: boolean = false;
     private startedInTabArea: boolean = false;
@@ -223,6 +223,10 @@ export default abstract class GameShell {
 
             await this.draw();
 
+            if (this.isMobile) {
+                MobileKeyboard.draw();
+            }
+
             this.frameTime[this.fpos] = (performance.now() - start) / 1000;
             this.fpos = (this.fpos + 1) % this.frameTime.length;
 
@@ -289,8 +293,9 @@ export default abstract class GameShell {
         const y: number = height / 2 - 18;
 
         // draw full progress bar
+        canvas2d.strokeStyle = 'rgb(140, 17, 17)';
+        canvas2d.strokeRect(((width / 2) | 0) - 152, y, 304, 34);
         canvas2d.fillStyle = 'rgb(140, 17, 17)';
-        canvas2d.rect(((width / 2) | 0) - 152, y, 304, 34);
         canvas2d.fillRect(((width / 2) | 0) - 150, y + 2, progress * 3, 30);
 
         // cover up progress bar
@@ -336,7 +341,7 @@ export default abstract class GameShell {
 
     // ----
     private onkeydown(e: KeyboardEvent) {
-        this.idleCycles = Date.now();
+        this.idleCycles = performance.now();
 
         const keyCode = KeyCodes.get(e.key);
         if (!keyCode || (e.code.length === 0 && !e.isTrusted)) {
@@ -372,7 +377,7 @@ export default abstract class GameShell {
     }
 
     private onkeyup(e: KeyboardEvent) {
-        this.idleCycles = Date.now();
+        this.idleCycles = performance.now();
 
         const keyCode = KeyCodes.get(e.key);
         if (!keyCode || (e.code.length === 0 && !e.isTrusted)) {
@@ -408,13 +413,15 @@ export default abstract class GameShell {
         //Don't 'reset' position (This fixes right click in Android)
         if (e.clientX > 0 || e.clientY > 0) this.setMousePosition(e);
 
-        this.idleCycles = Date.now();
+        this.idleCycles = performance.now();
         this.lastMouseClickX = this.mouseX;
         this.lastMouseClickY = this.mouseY;
-        this.lastMouseClickTime = Date.now();
+        this.lastMouseClickTime = performance.now();
 
         if (this.isMobile && !this.isCapacitor) {
-            if (this.insideMobileInputArea() && !this.insideChatPopupArea()) {
+            if (this.insideMobileInputArea() && !this.insideUsernameArea() && !this.inPasswordArea() && !this.insideChatPopupArea()) {
+                // Negate the mousedown event - it's inside mobile input area
+                // It will be handled by mouseup.
                 this.lastMouseClickButton = 1;
                 this.mouseButton = 1;
                 return;
@@ -439,6 +446,14 @@ export default abstract class GameShell {
             }
         }
 
+        if (MobileKeyboard.isDisplayed()) {
+            if (MobileKeyboard.captureMouseDown(this.mouseX, this.mouseY)) {
+                // Negate MouseDown if Keyboard shown and inside of Keyboard area
+                this.mouseButton = 0;
+                this.mouseClickButton = 0;
+            }
+        }
+
         if (InputTracking.enabled) {
             InputTracking.mousePressed(this.lastMouseClickX, this.lastMouseClickY, e.button);
         }
@@ -447,8 +462,22 @@ export default abstract class GameShell {
     private onmouseup(e: MouseEvent) {
         this.setMousePosition(e);
 
-        this.idleCycles = Date.now();
+        this.idleCycles = performance.now();
         this.mouseButton = 0;
+
+        if (this.isMobile) {
+            const insideMobileInputArea = this.insideMobileInputArea();
+            if (insideMobileInputArea && !MobileKeyboard.isDisplayed()) {
+                // Show Keyboard if user presses input field
+                MobileKeyboard.show(this.mouseX, this.mouseY);
+            } else if (MobileKeyboard.isDisplayed()) {
+                if (!MobileKeyboard.captureMouseUp(this.mouseX, this.mouseY)) {
+                    // Hide Keyboard on mouse up outside of bounds
+                    MobileKeyboard.hide();
+                    this.refresh();
+                }
+            }
+        }
 
         if (InputTracking.enabled) {
             InputTracking.mouseReleased(e.button);
@@ -466,7 +495,7 @@ export default abstract class GameShell {
     private onmouseleave(e: MouseEvent) {
         this.setMousePosition(e);
 
-        this.idleCycles = Date.now();
+        this.idleCycles = performance.now();
         this.mouseX = -1;
         this.mouseY = -1;
 
@@ -483,7 +512,13 @@ export default abstract class GameShell {
     private onmousemove(e: MouseEvent) {
         this.setMousePosition(e);
 
-        this.idleCycles = Date.now();
+        this.idleCycles = performance.now();
+
+        if (this.isMobile && this.touching) {
+            if (MobileKeyboard.isDisplayed()) {
+                MobileKeyboard.notifyTouchMove(this.mouseX, this.mouseY);
+            }
+        }
 
         if (InputTracking.enabled) {
             InputTracking.mouseMoved(this.mouseX, this.mouseY);
@@ -516,11 +551,6 @@ export default abstract class GameShell {
     private ontouchstart(e: TouchEvent) {
         if (!this.isMobile) {
             return;
-        }
-
-        if (this.input !== null) {
-            this.input.parentNode?.removeChild(this.input);
-            this.input = null;
         }
 
         this.touching = true;
@@ -562,92 +592,6 @@ export default abstract class GameShell {
             this.touching = false;
             return;
         } else if (this.insideMobileInputArea()) {
-            if (this.input !== null) {
-                if (this.input.parentNode?.contains(this.input)) {
-                    this.input.parentNode?.removeChild(this.input);
-                }
-                this.input = null;
-            }
-
-            const input: HTMLInputElement = document.createElement('input');
-            if (this.insideUsernameArea()) {
-                input.setAttribute('id', 'username');
-                input.setAttribute('placeholder', 'Username');
-            } else if (this.inPasswordArea()) {
-                input.setAttribute('id', 'password');
-                input.setAttribute('placeholder', 'Password');
-            } else if (this.insideChatInputArea()) {
-                input.setAttribute('id', 'chatinput');
-                input.setAttribute('placeholder', 'Chatinput');
-            } else if (this.insideChatPopupArea()) {
-                input.setAttribute('id', 'chatpopup');
-                input.setAttribute('placeholder', 'Chatpopup');
-            } else if (this.insideReportInterfaceTextArea()) {
-                input.setAttribute('id', 'reportinput');
-                input.setAttribute('placeholder', 'Username');
-            }
-            if (this.isAndroid) {
-                // this forces android to not use compose text for oninput. its good enough.
-                input.setAttribute('type', 'password');
-            } else {
-                input.setAttribute('type', this.inPasswordArea() ? 'password' : 'text');
-            }
-            input.setAttribute('autofocus', 'autofocus');
-            input.setAttribute('spellcheck', 'false');
-            input.setAttribute('autocomplete', 'off');
-            input.setAttribute('style', `position: fixed; left: ${clientX}px; top: ${clientY}px; width: 1px; height: 1px; opacity: 0;`);
-            document.body.appendChild(input);
-
-            input.focus();
-            input.click();
-
-            if (this.isAndroid) {
-                input.oninput = (e: Event): void => {
-                    if (!(e instanceof InputEvent)) {
-                        return;
-                    }
-                    const input: InputEvent = e as InputEvent;
-                    const data: string | null = input.data;
-
-                    if (data === null) {
-                        return;
-                    }
-
-                    if (input.inputType !== 'insertText') {
-                        return;
-                    }
-
-                    this.onkeydown(new KeyboardEvent('keydown', { key: data, code: data }));
-                };
-            }
-
-            input.onkeydown = (e: KeyboardEvent): void => {
-                if (this.isAndroid) {
-                    if (e.key === 'Enter' || e.key === 'Backspace') {
-                        this.onkeydown(new KeyboardEvent('keydown', { key: e.key, code: e.key }));
-                    }
-                    return;
-                }
-                this.onkeydown(new KeyboardEvent('keydown', { key: e.key, code: e.key }));
-            };
-
-            input.onkeyup = (e: KeyboardEvent): void => {
-                if (this.isAndroid) {
-                    if (e.key === 'Enter' || e.key === 'Backspace') {
-                        this.onkeyup(new KeyboardEvent('keyup', { key: e.key, code: e.key }));
-                    }
-                    return;
-                }
-                this.onkeyup(new KeyboardEvent('keyup', { key: e.key, code: e.key }));
-            };
-
-            input.onfocus = (e: FocusEvent): void => {
-                this.input?.parentNode?.removeChild(this.input);
-                this.input = null;
-                this.onfocus(e);
-            };
-
-            this.input = input;
             this.touching = false;
             return;
         }
@@ -684,22 +628,24 @@ export default abstract class GameShell {
         this.nx = touch.screenX | 0;
         this.ny = touch.screenY | 0;
 
-        if (this.startedInViewport && this.getViewportInterfaceId() === -1) {
-            // Camera panning
-            if (this.mx - this.nx > 0) {
-                this.rotate(2);
-            } else if (this.mx - this.nx < 0) {
-                this.rotate(0);
-            }
+        if (!MobileKeyboard.isWithinCanvasKeyboard(this.mouseX, this.mouseY)) {
+            if (this.startedInViewport && this.getViewportInterfaceId() === -1) {
+                // Camera panning
+                if (this.mx - this.nx > 0) {
+                    this.rotate(2);
+                } else if (this.mx - this.nx < 0) {
+                    this.rotate(0);
+                }
 
-            if (this.my - this.ny > 0) {
-                this.rotate(3);
-            } else if (this.my - this.ny < 0) {
-                this.rotate(1);
+                if (this.my - this.ny > 0) {
+                    this.rotate(3);
+                } else if (this.my - this.ny < 0) {
+                    this.rotate(1);
+                }
+            } else if (this.startedInTabArea || this.getViewportInterfaceId() !== -1) {
+                // Drag and drop
+                this.onmousedown(new MouseEvent('mousedown', { clientX, clientY, button: 1 }));
             }
-        } else if (this.startedInTabArea || this.getViewportInterfaceId() !== -1) {
-            // Drag and drop
-            this.onmousedown(new MouseEvent('mousedown', { clientX, clientY, button: 1 }));
         }
 
         this.mx = this.nx;
@@ -708,7 +654,19 @@ export default abstract class GameShell {
 
     protected get isMobile(): boolean {
         const keywords: string[] = ['Android', 'webOS', 'iPhone', 'iPad', 'iPod', 'BlackBerry', 'Windows Phone'];
-        return keywords.some((keyword: string): boolean => navigator.userAgent.includes(keyword));
+        if (keywords.some((keyword: string): boolean => navigator.userAgent.includes(keyword))) {
+            return true;
+        }
+
+        // Annoyingly, iOS Safari shares UA with MacOS these days, so we have
+        // to do some feature testing.
+        if (navigator) {
+            const isiOSSafari = navigator.maxTouchPoints !== undefined && navigator.maxTouchPoints > 2 && (navigator as any).standalone !== undefined;
+            if (isiOSSafari) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private get isAndroid(): boolean {
@@ -723,8 +681,8 @@ export default abstract class GameShell {
 
     private insideViewportArea() {
         // 512 x 334
-        const viewportAreaX1: number = 8;
-        const viewportAreaY1: number = 11;
+        const viewportAreaX1: number = 4;
+        const viewportAreaY1: number = 4;
         const viewportAreaX2: number = viewportAreaX1 + 512;
         const viewportAreaY2: number = viewportAreaY1 + 334;
         return this.ingame && this.mouseX >= viewportAreaX1 && this.mouseX <= viewportAreaX2 && this.mouseY >= viewportAreaY1 && this.mouseY <= viewportAreaY2;
@@ -736,11 +694,10 @@ export default abstract class GameShell {
     }
 
     private insideChatInputArea() {
-        // 495 x 33
-        const chatInputAreaX1: number = 11;
-        const chatInputAreaY1: number = 449;
-        const chatInputAreaX2: number = chatInputAreaX1 + 495;
-        const chatInputAreaY2: number = chatInputAreaY1 + 33;
+        const chatInputAreaX1: number = 17;
+        const chatInputAreaY1: number = 434;
+        const chatInputAreaX2: number = chatInputAreaX1 + 479;
+        const chatInputAreaY2: number = chatInputAreaY1 + 26;
         return (
             this.ingame &&
             this.getChatInterfaceId() === -1 &&
@@ -753,13 +710,19 @@ export default abstract class GameShell {
         );
     }
 
-    private insideChatPopupArea() {
-        // 495 x 99
-        const chatInputAreaX1: number = 11;
-        const chatInputAreaY1: number = 383;
-        const chatInputAreaX2: number = chatInputAreaX1 + 495;
-        const chatInputAreaY2: number = chatInputAreaY1 + 99;
-        return this.ingame && (this.isChatBackInputOpen() || this.isShowSocialInput()) && this.mouseX >= chatInputAreaX1 && this.mouseX <= chatInputAreaX2 && this.mouseY >= chatInputAreaY1 && this.mouseY <= chatInputAreaY2;
+    protected insideChatPopupArea() {
+        const chatInputAreaX1: number = 17;
+        const chatInputAreaY1: number = 357;
+        const chatInputAreaX2: number = chatInputAreaX1 + 479;
+        const chatInputAreaY2: number = chatInputAreaY1 + 96;
+        return (
+            this.ingame &&
+            (this.isChatBackInputOpen() || this.isShowSocialInput()) &&
+            this.mouseX >= chatInputAreaX1 &&
+            this.mouseX <= chatInputAreaX2 &&
+            this.mouseY >= chatInputAreaY1 &&
+            this.mouseY <= chatInputAreaY2
+        );
     }
 
     private insideReportInterfaceTextArea() {
@@ -770,47 +733,47 @@ export default abstract class GameShell {
         if (!this.ingame) {
             return false;
         }
+
         const viewportInterfaceId = this.getViewportInterfaceId();
         const reportAbuseInterfaceId = this.getReportAbuseInterfaceId();
         // either viewport or report-abuse interface Ids are bad
         if (viewportInterfaceId === -1 || reportAbuseInterfaceId === -1) {
             return false;
         }
+
         // active viewport interface Id does not match
         if (viewportInterfaceId !== reportAbuseInterfaceId) {
             return false;
         }
-        const reportInputAreaX1: number = 82;
-        const reportInputAreaY1: number = 137;
-        const reportInputAreaX2: number = reportInputAreaX1 + 366;
-        const reportInputAreaY2: number = reportInputAreaY1 + 26;
+
+        const reportInputAreaX1: number = 87;
+        const reportInputAreaY1: number = 119;
+        const reportInputAreaX2: number = reportInputAreaX1 + 348;
+        const reportInputAreaY2: number = reportInputAreaY1 + 37;
         return this.mouseX >= reportInputAreaX1 && this.mouseX <= reportInputAreaX2 && this.mouseY >= reportInputAreaY1 && this.mouseY <= reportInputAreaY2;
     }
 
     private insideTabArea() {
-        // 190 x 261
-        const tabAreaX1: number = 562;
-        const tabAreaY1: number = 231;
+        const tabAreaX1: number = 553;
+        const tabAreaY1: number = 205;
         const tabAreaX2: number = tabAreaX1 + 190;
         const tabAreaY2: number = tabAreaY1 + 261;
         return this.ingame && this.mouseX >= tabAreaX1 && this.mouseX <= tabAreaX2 && this.mouseY >= tabAreaY1 && this.mouseY <= tabAreaY2;
     }
 
     private insideUsernameArea() {
-        // 261 x 17
-        const usernameAreaX1: number = 301;
-        const usernameAreaY1: number = 262;
-        const usernameAreaX2: number = usernameAreaX1 + 261;
-        const usernameAreaY2: number = usernameAreaY1 + 17;
+        const usernameAreaX1: number = 280;
+        const usernameAreaY1: number = 233;
+        const usernameAreaX2: number = usernameAreaX1 + 190;
+        const usernameAreaY2: number = usernameAreaY1 + 31;
         return !this.ingame && this.getTitleScreenState() === 2 && this.mouseX >= usernameAreaX1 && this.mouseX <= usernameAreaX2 && this.mouseY >= usernameAreaY1 && this.mouseY <= usernameAreaY2;
     }
 
     private inPasswordArea() {
-        // 261 x 17
-        const passwordAreaX1: number = 301;
-        const passwordAreaY1: number = 279;
-        const passwordAreaX2: number = passwordAreaX1 + 261;
-        const passwordAreaY2: number = passwordAreaY1 + 17;
+        const passwordAreaX1: number = 280;
+        const passwordAreaY1: number = 264;
+        const passwordAreaX2: number = passwordAreaX1 + 278;
+        const passwordAreaY2: number = passwordAreaY1 + 20;
         return !this.ingame && this.getTitleScreenState() === 2 && this.mouseX >= passwordAreaX1 && this.mouseX <= passwordAreaX2 && this.mouseY >= passwordAreaY1 && this.mouseY <= passwordAreaY2;
     }
 
@@ -843,6 +806,8 @@ export default abstract class GameShell {
             x: e.clientX - canvasBounds.left,
             y: e.clientY - canvasBounds.top
         };
+        let newX = 0;
+        let newY = 0;
 
         if (this.isFullScreen()) {
             // Fullscreen logic will ensure the canvas aspect ratio is
@@ -873,29 +838,23 @@ export default abstract class GameShell {
             }
             const scaleX = fixedWidth / trueCanvasWidth;
             const scaleY = fixedHeight / trueCanvasHeight;
-            this.mouseX = ((clickLocWithinCanvas.x - offsetX) * scaleX) | 0;
-            this.mouseY = ((clickLocWithinCanvas.y - offsetY) * scaleY) | 0;
+            newX = ((clickLocWithinCanvas.x - offsetX) * scaleX) | 0;
+            newY = ((clickLocWithinCanvas.y - offsetY) * scaleY) | 0;
         } else {
             const scaleX: number = canvas.width / canvasBounds.width;
             const scaleY: number = canvas.height / canvasBounds.height;
-            this.mouseX = (clickLocWithinCanvas.x * scaleX) | 0;
-            this.mouseY = (clickLocWithinCanvas.y * scaleY) | 0;
+            newX = (clickLocWithinCanvas.x * scaleX) | 0;
+            newY = (clickLocWithinCanvas.y * scaleY) | 0;
         }
 
-        if (this.mouseX < 0) {
-            this.mouseX = 0;
-        }
-
-        if (this.mouseY < 0) {
-            this.mouseY = 0;
-        }
-
-        if (this.mouseX > fixedWidth) {
-            this.mouseX = fixedWidth;
-        }
-
-        if (this.mouseY > fixedHeight) {
-            this.mouseY = fixedHeight;
+        // Specifically filter events outside of bounds of canvas; this can
+        // happen if fullscreen mode is on due to letterboxing! The result is
+        // that the mouse appears to move up/down vertically along X:0 if they
+        // move mouse on the black section to the left, vice versa for other
+        // sides, depending on aspect ratio.
+        if (newX >= 0 && newX < fixedWidth && newY >= 0 && newY < fixedHeight) {
+            this.mouseX = newX;
+            this.mouseY = newY;
         }
     }
 }

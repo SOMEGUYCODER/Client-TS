@@ -1,16 +1,18 @@
-import type { Client } from '#/client/Client.ts';
-import DoublyLinkList from '#/datastruct/DoublyLinkList.ts';
-import LinkList from '#/datastruct/LinkList.ts';
-import ClientStream from '#/io/ClientStream.ts';
-import type Jagfile from '#/io/Jagfile.ts';
-import OnDemandProvider from '#/io/OnDemandProvider.ts';
-import OnDemandRequest from '#/io/OnDemandRequest.ts';
-import Packet from '#/io/Packet.ts';
-import { downloadUrl } from '#/util/JsUtil';
+import type { Client } from '#/client/Client.js';
+import DoublyLinkList from '#/datastruct/DoublyLinkList.js';
+import LinkList from '#/datastruct/LinkList.js';
+import ClientStream from '#/io/ClientStream.js';
+import type Jagfile from '#/io/Jagfile.js';
+import OnDemandProvider from '#/io/OnDemandProvider.js';
+import OnDemandRequest from '#/io/OnDemandRequest.js';
+import Packet from '#/io/Packet.js';
+import { downloadUrl, sleep } from '#/util/JsUtil';
 import { gunzipSync, unzipSync } from '#3rdparty/deps.js';
+import type { Unzipped } from 'fflate';
 
 export default class OnDemand extends OnDemandProvider {
     modernized: boolean = true;
+    zip: Unzipped | null = null;
 
     versions: number[][] = [];
     crcs: number[][] = [];
@@ -240,7 +242,8 @@ export default class OnDemand extends OnDemandProvider {
             return req;
         }
 
-        req.data = gunzipSync(req.data);
+        req.data = gunzipSync(req.data.slice(0, req.data.length - 2));
+
         return req;
     }
 
@@ -487,11 +490,22 @@ export default class OnDemand extends OnDemandProvider {
             }
 
             if (this.current) {
-                // todo: download a big pack (chunk of files) instead of one http req per
-                this.current.data = await downloadUrl(`/${this.current.archive + 1}/${this.current.file}`);
+                await this.downloadZip();
+
+                if (!this.zip) {
+                    return;
+                }
+
+                this.current.data = this.zip[`${this.current.archive + 1}.${this.current.file}`];
+
+                if (!this.current.data) {
+                    this.current.unlink();
+                    this.current = null;
+                    return;
+                }
 
                 if (this.app.db) {
-                    this.app.db.write(this.current.archive + 1, this.current.file, this.current.data);
+                    await this.app.db.write(this.current.archive + 1, this.current.file, this.current.data);
                 }
 
                 if (!this.current.urgent && this.current.archive === 3) {
@@ -637,7 +651,7 @@ export default class OnDemand extends OnDemandProvider {
 
         try {
             if (this.stream === null) {
-                const now = Date.now();
+                const now = performance.now();
                 if (now - this.socketOpenTime < 5000) {
                     return;
                 }
@@ -677,32 +691,52 @@ export default class OnDemand extends OnDemandProvider {
         }
     }
 
-    async unzip() {
+    async downloadZip() {
+        while (!this.zip) {
+            try {
+                this.zip = unzipSync(await downloadUrl('/ondemand.zip'));
+                break;
+            } catch (_) {
+                await sleep(1000);
+            }
+        }
+    }
+
+    async prefetchAll() {
         if (!this.app.db) {
             return;
         }
 
-        try {
-            const zip = unzipSync(await downloadUrl('/ondemand.zip'));
+        let success = false;
+        for (let retry = 0; retry < 3 && !success; retry++) {
+            if (typeof (await this.app.db.read(2, 0)) !== 'undefined') {
+                return;
+            }
 
-            for (let archive = 0; archive < 4; archive++) {
-                const count = this.versions[archive].length;
+            try {
+                const zip = unzipSync(await downloadUrl('/ondemand.zip'));
 
-                for (let file = 0; file < count; file++) {
-                    const data = zip[`${archive + 1}.${file}`];
-                    if (typeof data === 'undefined') {
-                        continue;
-                    }
+                for (let archive = 0; archive < 4; archive++) {
+                    const count = this.versions[archive].length;
 
-                    const existing = await this.app.db.read(archive + 1, file);
+                    for (let file = 0; file < count; file++) {
+                        const data = zip[`${archive + 1}.${file}`];
+                        if (typeof data === 'undefined') {
+                            continue;
+                        }
 
-                    if (!existing || !this.validate(existing, this.crcs[archive][file], this.versions[archive][file])) {
-                        await this.app.db.write(archive + 1, file, data);
+                        const existing = await this.app.db.read(archive + 1, file);
+
+                        if (!existing || !this.validate(existing, this.crcs[archive][file], this.versions[archive][file])) {
+                            await this.app.db.write(archive + 1, file, data);
+                        }
                     }
                 }
+
+                success = true;
+            } catch (err) {
+                console.error(err);
             }
-        } catch (err) {
-            console.error(err);
         }
     }
 }

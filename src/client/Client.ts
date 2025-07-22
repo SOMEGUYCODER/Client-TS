@@ -2,7 +2,7 @@ import { playWave, setWaveVolume, stopMidi, setMidiVolume, playMidi } from '#3rd
 
 import GameShell from '#/client/GameShell.js';
 import InputTracking from '#/client/InputTracking.js';
-import { ClientCode } from '#/client/ClientCode.ts';
+import { ClientCode } from '#/client/ClientCode.js';
 
 import FloType from '#/config/FloType.js';
 import SeqType, { PostanimMove, PreanimMove, RestartMode } from '#/config/SeqType.js';
@@ -58,13 +58,14 @@ import Database from '#/io/Database.js';
 import Isaac from '#/io/Isaac.js';
 import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
-import { ServerProt, ServerProtSizes } from '#/io/ServerProt.ts';
+import { ServerProt, ServerProtSizes } from '#/io/ServerProt.js';
 
 import WordFilter from '#/wordenc/WordFilter.js';
 import WordPack from '#/wordenc/WordPack.js';
 
 import Wave from '#/sound/Wave.js';
-import OnDemand from '#/io/OnDemand.ts';
+import OnDemand from '#/io/OnDemand.js';
+import MobileKeyboard from '#/client/MobileKeyboard.ts';
 
 const enum Constants {
     CLIENT_VERSION = 244,
@@ -620,7 +621,7 @@ export class Client extends GameShell {
             AnimFrame.init(this.onDemand.getAnimCount());
             Model.init(this.onDemand.getFileCount(0), this.onDemand);
 
-            await this.onDemand.unzip();
+            await this.onDemand.prefetchAll();
 
             if (!Client.lowMemory) {
                 this.midiSong = 0; // scape_main
@@ -1496,7 +1497,7 @@ export class Client extends GameShell {
                 this.field1264 = 0;
                 this.menuSize = 0;
                 this.menuVisible = false;
-                this.idleCycles = Date.now();
+                this.idleCycles = performance.now();
 
                 for (let i: number = 0; i < 100; i++) {
                     this.messageText[i] = null;
@@ -1625,7 +1626,7 @@ export class Client extends GameShell {
                 this.systemUpdateTimer = 0;
                 this.menuSize = 0;
                 this.menuVisible = false;
-                this.sceneLoadStartTime = Date.now();
+                this.sceneLoadStartTime = performance.now();
             } else if (reply === 16) {
                 this.loginMessage0 = 'Login attempts exceeded.';
                 this.loginMessage1 = 'Please wait 1 minute and try again.';
@@ -1881,10 +1882,14 @@ export class Client extends GameShell {
                 this.mouseClickButton = 0;
             }
 
-            this.handleMouseInput();
-            this.handleMinimapInput();
-            this.handleTabInput();
-            this.handleChatModeInput();
+            const checkClickInput = !this.isMobile || (this.isMobile && !MobileKeyboard.isWithinCanvasKeyboard(this.mouseClickX, this.mouseClickY));
+
+            if (checkClickInput) {
+                this.handleMouseInput();
+                this.handleMinimapInput();
+                this.handleTabInput();
+                this.handleChatModeInput();
+            }
 
             if (this.mouseButton === 1 || this.mouseClickButton === 1) {
                 this.dragCycles++;
@@ -1908,11 +1913,11 @@ export class Client extends GameShell {
             // timers when a different tab is active, or the window has been minimized.
             // afk logout has to still happen after 90s of no activity (if allowed).
             // https://developer.chrome.com/blog/timer-throttling-in-chrome-88/
-            if (Date.now() - this.idleCycles > 90_000) {
+            if (performance.now() - this.idleCycles > 90_000) {
                 // 4500 ticks * 20ms = 90000ms
                 this.idleTimeout = 250;
                 // 500 ticks * 20ms = 10000ms
-                this.idleCycles = Date.now() - 10_000;
+                this.idleCycles = performance.now() - 10_000;
 
                 this.out.p1isaac(ClientProt.IDLE_TIMER);
             }
@@ -2038,9 +2043,9 @@ export class Client extends GameShell {
 
         if (this.sceneState === 1) {
             const status = this.checkScene();
-            if (status != 0 && Date.now() - this.sceneLoadStartTime > 360000) {
+            if (status != 0 && performance.now() - this.sceneLoadStartTime > 360000) {
                 console.log(`${this.username} glcfb ${this.serverSeed},${status},${Client.lowMemory},${this.db},${this.onDemand?.remaining()},${this.currentLevel},${this.sceneCenterZoneX},${this.sceneCenterZoneZ}`);
-                this.sceneLoadStartTime = Date.now();
+                this.sceneLoadStartTime = performance.now();
             }
         }
 
@@ -2385,9 +2390,9 @@ export class Client extends GameShell {
                         throw new Error();
                     }
 
-                    if (Date.now() + ((buf.pos / 22) | 0) > this.lastWaveStartTime + ((this.lastWaveLength / 22) | 0)) {
+                    if (performance.now() + ((buf.pos / 22) | 0) > this.lastWaveStartTime + ((this.lastWaveLength / 22) | 0)) {
                         this.lastWaveLength = buf.pos;
-                        this.lastWaveStartTime = Date.now();
+                        this.lastWaveStartTime = performance.now();
                         this.lastWaveId = this.waveIds[wave];
                         this.lastWaveLoops = this.waveLoops[wave];
                         await playWave(buf.data.slice(0, buf.pos));
@@ -2833,6 +2838,10 @@ export class Client extends GameShell {
             return;
         }
 
+        if (this.isMobile && this.chatbackInputOpen && this.insideChatPopupArea()) {
+            return;
+        }
+
         let button: number = this.mouseClickButton;
         if (this.spellSelected === 1 && this.mouseClickX >= 516 && this.mouseClickY >= 160 && this.mouseClickX <= 765 && this.mouseClickY <= 205) {
             button = 0;
@@ -3105,8 +3114,12 @@ export class Client extends GameShell {
             for (let i: number = 0; i < Component.types.length; i++) {
                 if (Component.types[i] && Component.types[i].clientCode === 600) {
                     this.reportAbuseInterfaceId = this.viewportInterfaceId = Component.types[i].layer;
-                    return;
+                    break;
                 }
+            }
+
+            if (this.isMobile) {
+                MobileKeyboard.show();
             }
         }
     }
@@ -6328,6 +6341,10 @@ export class Client extends GameShell {
                 this.chatbackInput = '';
                 this.redrawChatback = true;
 
+                if (this.isMobile) {
+                    MobileKeyboard.show();
+                }
+
                 this.ptype = -1;
                 return true;
             }
@@ -6535,7 +6552,7 @@ export class Client extends GameShell {
                 }
 
                 this.sceneState = 1;
-                this.sceneLoadStartTime = Date.now();
+                this.sceneLoadStartTime = performance.now();
 
                 this.areaViewport?.bind();
                 this.fontPlain12?.drawStringCenter(257, 151, 'Loading - please wait.', Colors.BLACK);
@@ -7447,7 +7464,7 @@ export class Client extends GameShell {
 
                 let model = loc.getModel(shape, angle, heightSW, heightSE, heightNE, heightNW, -1);
                 if (model) {
-                    this.appendLoc(start + this.loopCycle, -1, angle, layer, z, shape, this.currentLevel, x, end + this.loopCycle);
+                    this.appendLoc(end + 1, -1, 0, layer, z, 0, this.currentLevel, x, start + 1);
 
                     player.locStartCycle = start + this.loopCycle;
                     player.locStopCycle = end + this.loopCycle;
@@ -11423,6 +11440,10 @@ export class Client extends GameShell {
         }
 
         this.imageTitle1?.draw(637, 0);
+
+        if (this.isMobile) {
+            MobileKeyboard.draw();
+        }
     }
 
     private mix(src: number, alpha: number, dst: number): number {
