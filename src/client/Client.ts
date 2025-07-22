@@ -9103,7 +9103,7 @@ export class Client extends GameShell {
                 }
             }
 
-            if (npc.op) {
+            /*if (npc.op) {
                 for (type = 4; type >= 0; type--) {
                     if (npc.op[type] && npc.op[type]?.toLowerCase() !== 'attack'
                         && npc.op[type]?.toLowerCase() !== 'pickpocket') {
@@ -9132,7 +9132,7 @@ export class Client extends GameShell {
                         this.menuSize++;
                     }
                 }
-            }
+            }*/
             
             if (npc.op) {
                 for (type = 4; type >= 0; type--) {
