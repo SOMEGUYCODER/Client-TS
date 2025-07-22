@@ -361,7 +361,7 @@ export default abstract class GameShell {
         if (ch > 0 && ch < 128) {
             this.actionKey[ch] = 1;
         }
-
+        
         if (ch > 4) {
             this.keyQueue[this.keyQueueWritePos] = ch;
             this.keyQueueWritePos = (this.keyQueueWritePos + 1) & 0x7f;
