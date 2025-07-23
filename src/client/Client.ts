@@ -3507,7 +3507,7 @@ export class Client extends GameShell {
                         if (key === 9) {
                             this.chatEnabled = !this.chatEnabled;
                             if (!this.chatEnabled) {
-                                this.chatTyped = "Press Tab to enable Chat...";
+                                this.chatTyped = "Press 'Tab' to enable chat...";
                                 this.redrawChatback = true;
                             } else {
                                 this.chatTyped = '';
