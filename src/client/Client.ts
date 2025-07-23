@@ -3,6 +3,7 @@ import { playWave, setWaveVolume, stopMidi, setMidiVolume, playMidi } from '#3rd
 import GameShell from '#/client/GameShell.js';
 import InputTracking from '#/client/InputTracking.js';
 import { ClientCode } from '#/client/ClientCode.js';
+import { CanvasEnabledKeys, KeyCodes } from '#/client/KeyCodes.js';
 
 import FloType from '#/config/FloType.js';
 import SeqType, { PostanimMove, PreanimMove, RestartMode } from '#/config/SeqType.js';
@@ -74,6 +75,22 @@ const enum Constants {
     LOCAL_PLAYER_INDEX = 2047
 }
 
+const enum HotkeyAction {
+    TAB_COMBAT_OPTIONS = 0,
+    TAB_SKILLS = 1,
+    TAB_QUEST_JOURNAL = 2,
+    TAB_INVENTORY = 3,
+    TAB_WORNITEMS = 4,
+    TAB_PRAYER = 5,
+    TAB_MAGIC = 6,
+    TAB_FRIENDS = 8,
+    TAB_IGNORE = 9,
+    TAB_LOGOUT = 10,
+    TAB_GAME_OPTIONS = 11,
+    TAB_PLAYER_CONTROLS = 12,
+    TAB_MUSICPLAYER = 13
+}
+
 export class Client extends GameShell {
     static nodeId: number = 10;
     static membersWorld: boolean = true;
@@ -95,6 +112,8 @@ export class Client extends GameShell {
     static oplogic7: number = 0;
     static oplogic8: number = 0;
     static oplogic9: number = 0;
+    
+    private keyBindMap: Map<number, HotKeyAction> = new Map();
 
     private alreadyStarted: boolean = false;
     private errorStarted: boolean = false;
@@ -3379,6 +3398,15 @@ export class Client extends GameShell {
                         return;
                     }
                     
+                    if (this.keyBindMap.has(key)) {
+                       const action = this.keyBindMap.get(key);
+                       this.selectedTab = action;
+                       this.redrawSidebar = true;
+                       this.redrawSideicons = true;
+                       this.ptype = -1;
+                       // Don't return, otherwise user may potentially not be able to change keybinds;
+                    }
+                    
                     if (this.viewportInterfaceId !== -1 && this.viewportInterfaceId === this.reportAbuseInterfaceId) {
                         if (key === 8 && this.reportAbuseInput.length > 0) {
                             this.reportAbuseInput = this.reportAbuseInput.substring(0, this.reportAbuseInput.length - 1);
@@ -3478,7 +3506,7 @@ export class Client extends GameShell {
                             this.chatTyped = this.chatTyped + String.fromCharCode(key);
                             this.redrawChatback = true;
                         }
-
+                        
                         if (key === 8 && this.chatTyped.length > 0) {
                             this.chatTyped = this.chatTyped.substring(0, this.chatTyped.length - 1);
                             this.redrawChatback = true;
@@ -3512,6 +3540,59 @@ export class Client extends GameShell {
                                     const desiredFps = parseInt(this.chatTyped.substring(6)) || 50;
                                     this.setTargetedFramerate(desiredFps);
                                 } catch (e) { }
+                            } else if (this.chatTyped.startsWith('::hotkey')) {
+                              const parts = this.chatTyped.split(/\s+/);
+ if (parts.length === 3) {
+    const [, actionStr, key] = parts;
+
+    let keyLower = KeyCodes.get(key).ch;
+    let action: HotKeyAction;
+
+switch (actionStr.toLowerCase()) {
+  case 'combat':
+    action = HotkeyAction.TAB_COMBAT_OPTIONS;
+    break;
+  case 'skills':
+    action = HotkeyAction.TAB_SKILLS;
+    break;
+  case 'quests':
+    action = HotkeyAction.TAB_QUEST_JOURNAL;
+    break;
+  case 'inventory':
+    action = HotkeyAction.TAB_INVENTORY;
+    break;
+  case 'equipment':
+    action = HotkeyAction.TAB_WORNITEMS;
+    break;
+  case 'prayer':
+    action = HotkeyAction.TAB_PRAYER;
+    break;
+  case 'magic':
+    action = HotkeyAction.TAB_MAGIC;
+    break;
+  case 'friends':
+    action = HotkeyAction.TAB_FRIENDS;
+    break;
+  case 'ignore':
+    action = HotkeyAction.TAB_IGNORE;
+    break;
+  case 'logout':
+    action = HotkeyAction.TAB_LOGOUT;
+    break;
+  case 'settings':
+    action = HotkeyAction.TAB_GAME_OPTIONS;
+    break;
+  case 'controls':
+    action = HotkeyAction.TAB_PLAYER_CONTROLS;
+    break;
+  case 'music':
+    action = HotkeyAction.TAB_MUSICPLAYER;
+    break;
+  default:
+    return;
+}
+    this.keyBindMap.set(keyLower, action);
+    }
                             } else if (this.chatTyped.startsWith('::')) {
                                 this.out.p1isaac(ClientProt.CLIENT_CHEAT);
                                 this.out.p1(this.chatTyped.length - 1);
