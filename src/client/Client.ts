@@ -114,6 +114,7 @@ export class Client extends GameShell {
     static oplogic9: number = 0;
     
     private keyBindMap: Map<number, HotKeyAction> = new Map();
+    private chatEnabled: boolean = true;
 
     private alreadyStarted: boolean = false;
     private errorStarted: boolean = false;
@@ -3501,6 +3502,23 @@ export class Client extends GameShell {
                             this.redrawChatback = true;
                         }
                     } else if (this.chatInterfaceId === -1) {
+                    
+                        // Tab
+                        if (key === 9) {
+                            this.chatEnabled = !this.chatEnabled;
+                            if (!this.chatEnabled) {
+                                this.chatTyped = "Press Tab to enable Chat...";
+                                this.redrawChatback = true;
+                            } else {
+                                this.chatTyped = '';
+                                this.redrawChatback = true;
+                            }
+                        }
+                    
+                        if (this.chatEnabled === false) {
+                            break;
+                        }
+                        
                         // custom: when typing a command, you can use the debugproc character (tilde)
                         if (key >= 32 && (key <= 122 || (this.chatTyped.startsWith('::') && key <= 126)) && this.chatTyped.length < 80) {
                             this.chatTyped = this.chatTyped + String.fromCharCode(key);
@@ -3545,10 +3563,19 @@ export class Client extends GameShell {
  if (parts.length === 3) {
     const [, actionStr, key] = parts;
 
-    let keyLower = KeyCodes.get(key).ch;
+
+    let keyLower: number;
     let action: HotKeyAction;
+    if (KeyCodes.has(key)) {
+       if (KeyCodes.get(key)) {
+          keyLower = KeyCodes.get(key).ch;
+       }
+    }
 
 switch (actionStr.toLowerCase()) {
+  case 'reset':
+    this.keyBindMap.clear();
+    break;
   case 'combat':
     action = HotkeyAction.TAB_COMBAT_OPTIONS;
     break;
@@ -3591,8 +3618,10 @@ switch (actionStr.toLowerCase()) {
   default:
     return;
 }
-    this.keyBindMap.set(keyLower, action);
+    if (keyLower) {
+      this.keyBindMap.set(keyLower, action);
     }
+}
                             } else if (this.chatTyped.startsWith('::')) {
                                 this.out.p1isaac(ClientProt.CLIENT_CHEAT);
                                 this.out.p1(this.chatTyped.length - 1);
