@@ -556,6 +556,9 @@ export class Client extends GameShell {
             this.errorHost = true;
         }
         
+                
+        this.loadKeyBinds();
+        
         this.run();
     }
 
@@ -1099,7 +1102,29 @@ export class Client extends GameShell {
 
         await sleep(5); // return a slice of time to the main loop so it can update the progress bar
     }
-
+    
+    private saveKeyBinds() {
+    const obj: Record<number, number> = {};
+    for (const [key, value] of this.keyBindMap.entries()) {
+        obj[key] = value;
+    }
+    localStorage.setItem('keyBindMap', JSON.stringify(obj));
+    }
+    
+    private loadKeyBinds() {
+const storedBinds = localStorage.getItem('keyBindMap');
+if (storedBinds) {
+    try {
+        const parsed = JSON.parse(storedBinds);
+        for (const key in parsed) {
+            this.keyBindMap.set(parseInt(key), parsed[key]);
+        }
+    } catch (e) {
+        console.error("Failed to load key binds:", e);
+    }
+}
+    }
+     
     private drawError(): void {
         canvas2d.fillStyle = 'black';
         canvas2d.fillRect(0, 0, this.width, this.height);
@@ -3620,6 +3645,7 @@ switch (actionStr.toLowerCase()) {
 }
     if (keyLower) {
       this.keyBindMap.set(keyLower, action);
+      this.saveKeyBinds();
     }
 }
                             } else if (this.chatTyped.startsWith('::')) {
