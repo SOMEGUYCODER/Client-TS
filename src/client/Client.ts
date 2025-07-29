@@ -5492,8 +5492,17 @@ switch (actionStr.toLowerCase()) {
         }
 
         if (this.wildernessLevel > 0) {
-            this.imageHeadicon[0]?.draw(472, 296);
-            this.fontPlain12?.drawStringCenter(484, 329, 'Level: ' + this.wildernessLevel, Colors.YELLOW);
+            this.imageHeadicon[0]?.draw(452, 276);
+            this.fontPlain12?.drawStringCenter(466, 309, 'Deadman: ', Colors.YELLOW);
+            let maxLvl = this.localPlayer.combatLevel + 30;
+            let minLvl = this.localPlayer.combatLevel - 30;
+            if (minLvl <= 3) {
+               minLvl = 3;
+            }
+            if (maxLvl >= 126) {
+               maxLvl = 126;
+            }
+            this.fontPlain12?.drawStringCenter(466, 324, "" + minLvl + "-" + maxLvl, Colors.YELLOW);          
         }
 
         if (this.worldLocationState === 1) {
