@@ -459,7 +459,7 @@ export class Client extends GameShell {
     // player
     private localPlayer: ClientPlayer | null = null;
     private runenergy: number = 0;
-    private inMultizone: number = 0;
+    private inMultizone: number = 1;
     private localPid: number = -1;
     private runweight: number = 0;
     private noTimeoutCycle: number = 0;
@@ -1602,7 +1602,7 @@ if (storedBinds) {
                 this.menuVisible = false;
                 this.showSocialInput = false;
                 this.modalMessage = null;
-                this.inMultizone = 0;
+                this.inMultizone = 1;
                 this.flashingTab = -1;
 
                 this.designGender = true;
@@ -5485,17 +5485,17 @@ switch (actionStr.toLowerCase()) {
 
         if (this.inMultizone === 1) {
             if (this.wildernessLevel > 0 || this.worldLocationState === 1) {
-                this.imageHeadicon[1]?.draw(472, 258);
+                //this.imageHeadicon[1]?.draw(472, 258);
             } else {
-                this.imageHeadicon[1]?.draw(472, 296);
+                //this.imageHeadicon[1]?.draw(472, 296);
             }
         }
 
         if (this.wildernessLevel > 0) {
-            this.imageHeadicon[0]?.draw(452, 276);
-            this.fontPlain12?.drawStringCenter(466, 309, 'Deadman: ', Colors.YELLOW);
-            let maxLvl = this.localPlayer.combatLevel + 30;
-            let minLvl = this.localPlayer.combatLevel - 30;
+            this.imageHeadicon[1]?.draw(452, 270);
+            this.fontPlain12?.drawStringCenter(466, 309, 'Rustman: ', Colors.YELLOW);
+            let maxLvl = 126;
+            let minLvl = 3;
             if (minLvl <= 3) {
                minLvl = 3;
             }

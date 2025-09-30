@@ -23,5 +23,8 @@
     },
     "peerDependencies": {
         "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "i": "^0.3.7"
     }
 }
